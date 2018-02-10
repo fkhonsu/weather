@@ -1,0 +1,9 @@
+#!/bin/bash
+
+forecastURL='https://www.yr.no/place/Poland/Lublin/Biała_Podlaska/forecast.xml'
+
+fetch_forecast() {
+    curl -SL $1
+}
+
+fetch_forecast  "$forecastURL"
