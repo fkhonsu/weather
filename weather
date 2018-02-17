@@ -21,16 +21,24 @@ check_for_needed_commands() {
     fi
 }
 
+usage() {
+    echo "Usage: $(basename "$0") [-h | --help] [-t <time> | --time <time>]"
+    echo "Options:"
+    echo "  -h, --help  print this message"
+    echo "  -t, --time  print forecast for this time"
+}
+
 fetch_forecast() {
     curl -sL $1
 }
 
 forecast_parse() {
-    xml sel -B -T -t "$@"
+    local forecast="$1"; shift
+    echo "$forecast" | xml sel -B -T -t "$@"
 }
 
 get_location() {
-    echo "$1" | forecast_parse                       \
+    forecast_parse "$1"                              \
         -m "//weatherdata/location"                  \
         -o    "country:   " -v "country"             \
         -n -o "name:      " -v "name"                \
@@ -42,28 +50,28 @@ get_location() {
 }
 
 get_credit() {
-    echo "$1" | forecast_parse       \
+    forecast_parse "$1"              \
         -m    "//weatherdata/credit" \
         -v    "link/@text"           \
         -n -v "link/@url"
 }
 
 get_meta() {
-    echo "$1" | forecast_parse                 \
+    forecast_parse "$1"                        \
         -m    "//weatherdata/meta"             \
-        -o    "last_update: " -v "lastupdate"  \
-        -n -o "next_update: " -v "nextupdate"  
+        -o    "last update: " -v "lastupdate"  \
+        -n -o "next update: " -v "nextupdate"  
 }
 
 get_sun() {
-    echo "$1" | forecast_parse              \
+    forecast_parse "$1"                     \
         -m    "//weatherdata/sun"           \
         -o    "sunrise: "     -v "@rise"    \
         -n -o "sunset:  "     -v "@set" 
 }
 
 get_forecast() {
-    echo "$1" | forecast_parse                                      \
+    forecast_parse "$1"                                             \
         -m "//weatherdata/forecast/tabular/time"                    \
         -o    "time:            " -v "@from" -o " - " -v "@to"      \
         -n -o "forecast:        " -v "symbol/@name"                 \
@@ -79,10 +87,55 @@ get_forecast() {
         -n -n
 }
 
-usage() {
-    echo "Usage: $(basename "$0") [-h | --help]"
-    echo "Options:"
-    echo "  -h, --help  print this message"
+get_forecast() {
+    # print all - default
+    local __match="//weatherdata/forecast/tabular/time"
+    local __times=0
+    local __from=0
+    local __to=0
+
+    # print specific time only
+    if [[ "$__time" ]]; then
+        __times=$(forecast_parse "$1" -v "count(//time)")
+        for n in $(seq 1 $__times); do
+
+            # construct forecast time period xpath
+            __match="//weatherdata/forecast/tabular/time[$n]"
+
+            # get forecast "from" date
+            __from="$(forecast_parse "$1" -m "$__match" -v "@from")"
+            __from="$(date -d "$__from" +%s)"
+
+            # workaround yr.no bug - sometimes forecast is few hours ahead
+            # of current time and does not include current time, in that
+            # case print first forecast available
+            if [[ ( $n -eq 1 ) && ( $__time -le $__from ) ]]; then
+                break
+            fi
+
+            if [[ $__time -gt $__from ]]; then
+                __to="$(forecast_parse "$1" -m "$__match" -v "@to")"
+                __to="$(date -d "$__from" +%s)"
+                if [[ $__time -le $__to ]]; then
+                    break
+                fi
+            fi
+        done
+    fi
+
+    forecast_parse "$1" -m "$__match"                               \
+        -o    "time:            " -v "@from" -o " - " -v "@to"      \
+        -n -o "forecast:        " -v "symbol/@name"                 \
+        -n -o "temperature:     " -v "temperature/@value" -o "°C"   \
+        -n -o "wind directions: " -v "windDirection/@name"          \
+        -o    " "                 -v "windDirection/@deg"           \
+        -o    " °"                -v "windDirection/@code"          \
+        -n -o "wind speed:      " -v "windSpeed/@name"              \
+        -o    " "                 -v "windSpeed/@mps" -o " m/s"     \
+        -n -o "precipitation:   " -v "precipitation/@value" -o " mm"\
+        -n -o "pressure:        " -v "pressure/@value"              \
+        -o    " "                 -v "pressure/@unit"               \
+        -n -n
 }
 
 
@@ -93,6 +146,15 @@ do
         -h | --help)
             usage            
             exit
+            ;;
+        -t | --time)
+            [[ $# < 2 ]] && { usage; exit 2; }
+            if [[ $2 == now ]]; then 
+                __time=$(date +%s)
+            else
+                __time=$(date -d "$2" +%s)
+            fi
+            shift 2
             ;;
         *)
             break
