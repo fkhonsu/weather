@@ -2,8 +2,8 @@
 
 # CONFIGURATION VARIABLES 
 forecastURL='https://www.yr.no/place/Poland/Lublin/Biała_Podlaska/forecast.xml'
-forecast_file="$(mktemp "$(basename $0).XXXXXXXXXX")"
 needed_commands="xml"
+
 
 # FUNCTION DEFINITIONS
 check_for_needed_commands() {
@@ -79,7 +79,28 @@ get_forecast() {
         -n -n
 }
 
+usage() {
+    echo "Usage: $(basename "$0") [-h | --help]"
+    echo "Options:"
+    echo "  -h, --help  print this message"
+}
+
+
 # MAIN CODE
+while :
+do
+    case $1 in
+        -h | --help)
+            usage            
+            exit
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+
 check_for_needed_commands || exit 1
 
 forecast=$(fetch_forecast  "$forecastURL")
@@ -88,4 +109,3 @@ echo "$(get_meta     "$forecast")" ; echo
 echo "$(get_sun      "$forecast")" ; echo
 echo "$(get_forecast "$forecast")" ; echo
 echo "$(get_credit   "$forecast")"
-
