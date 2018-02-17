@@ -1,9 +1,91 @@
 #!/bin/bash
 
+# CONFIGURATION VARIABLES 
 forecastURL='https://www.yr.no/place/Poland/Lublin/Biała_Podlaska/forecast.xml'
+forecast_file="$(mktemp "$(basename $0).XXXXXXXXXX")"
+needed_commands="xml"
 
-fetch_forecast() {
-    curl -SL $1
+# FUNCTION DEFINITIONS
+check_for_needed_commands() {
+    local missing_counter=0
+    for needed_command in $needed_commands; do
+      if ! hash "$needed_command" >/dev/null 2>&1; then
+        printf "Command not found in PATH: %s\n" "$needed_command" >&2
+        ((missing_counter++))
+      fi
+    done
+
+    if ((missing_counter > 0)); then
+      printf "Minimum %d commands are missing in PATH, aborting\n" "$missing_counter" >&2
+      exit 1
+    fi
 }
 
-fetch_forecast  "$forecastURL"
+fetch_forecast() {
+    curl -sL $1
+}
+
+forecast_parse() {
+    xml sel -B -T -t "$@"
+}
+
+get_location() {
+    echo "$1" | forecast_parse                       \
+        -m "//weatherdata/location"                  \
+        -o    "country:   " -v "country"             \
+        -n -o "name:      " -v "name"                \
+        -n -o "type:      " -v "type"                \
+        -n -o "timezone:  " -v "timezone/@id"        \
+        -n -o "altitude:  " -v "location/@altitude"  \
+        -n -o "latitude:  " -v "location/@latitude"  \
+        -n -o "longitude: " -v "location/@longitude"
+}
+
+get_credit() {
+    echo "$1" | forecast_parse       \
+        -m    "//weatherdata/credit" \
+        -v    "link/@text"           \
+        -n -v "link/@url"
+}
+
+get_meta() {
+    echo "$1" | forecast_parse                 \
+        -m    "//weatherdata/meta"             \
+        -o    "last_update: " -v "lastupdate"  \
+        -n -o "next_update: " -v "nextupdate"  
+}
+
+get_sun() {
+    echo "$1" | forecast_parse              \
+        -m    "//weatherdata/sun"           \
+        -o    "sunrise: "     -v "@rise"    \
+        -n -o "sunset:  "     -v "@set" 
+}
+
+get_forecast() {
+    echo "$1" | forecast_parse                                      \
+        -m "//weatherdata/forecast/tabular/time"                    \
+        -o    "time:            " -v "@from" -o " - " -v "@to"      \
+        -n -o "forecast:        " -v "symbol/@name"                 \
+        -n -o "temperature:     " -v "temperature/@value" -o "°C"   \
+        -n -o "wind directions: " -v "windDirection/@name"          \
+        -o    " "                 -v "windDirection/@deg"           \
+        -o    "°"                 -v "windDirection/@code"          \
+        -n -o "wind speed:      " -v "windSpeed/@name"              \
+        -o    " "                 -v "windSpeed/@mps" -o " m/s"     \
+        -n -o "precipitation:   " -v "precipitation/@value" -o " mm"\
+        -n -o "pressure:        " -v "pressure/@value"              \
+        -o    " "                 -v "pressure/@unit"               \
+        -n -n
+}
+
+# MAIN CODE
+check_for_needed_commands || exit 1
+
+forecast=$(fetch_forecast  "$forecastURL")
+echo "$(get_location "$forecast")" ; echo
+echo "$(get_meta     "$forecast")" ; echo
+echo "$(get_sun      "$forecast")" ; echo
+echo "$(get_forecast "$forecast")" ; echo
+echo "$(get_credit   "$forecast")"
+
