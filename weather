@@ -94,32 +94,32 @@ get_forecast() {
     local __from=0
     local __to=0
 
-    # print specific time only
-    if [[ "$__time" ]]; then
+    if [[ $__time ]]; then
         __times=$(forecast_parse "$1" -v "count(//time)")
-        for n in $(seq 1 $__times); do
-
+        for ((n = 1; n <= __times; n++)); do
             # construct forecast time period xpath
             __match="//weatherdata/forecast/tabular/time[$n]"
 
-            # get forecast "from" date
             __from="$(forecast_parse "$1" -m "$__match" -v "@from")"
             __from="$(date -d "$__from" +%s)"
+            if [[ $__time -ge $__from ]]; then
 
-            # workaround yr.no bug - sometimes forecast is few hours ahead
-            # of current time and does not include current time, in that
-            # case print first forecast available
-            if [[ ( $n -eq 1 ) && ( $__time -le $__from ) ]]; then
-                break
-            fi
-
-            if [[ $__time -gt $__from ]]; then
                 __to="$(forecast_parse "$1" -m "$__match" -v "@to")"
-                __to="$(date -d "$__from" +%s)"
+                __to="$(date -d "$__to" +%s)"
                 if [[ $__time -le $__to ]]; then
+                    break
+                else
+                    continue
+                fi
+            else
+                # workaround yr.no bug - sometimes forecast is few hours ahead
+                # of current time and does not include it, in that case print
+                # first forecast available
+                if [[ $n -eq 1 ]]; then
                     break
                 fi
             fi
+
         done
     fi
 
@@ -129,7 +129,7 @@ get_forecast() {
         -n -o "temperature:     " -v "temperature/@value" -o "°C"   \
         -n -o "wind directions: " -v "windDirection/@name"          \
         -o    " "                 -v "windDirection/@deg"           \
-        -o    " °"                -v "windDirection/@code"          \
+        -o    "° "                -v "windDirection/@code"          \
         -n -o "wind speed:      " -v "windSpeed/@name"              \
         -o    " "                 -v "windSpeed/@mps" -o " m/s"     \
         -n -o "precipitation:   " -v "precipitation/@value" -o " mm"\
