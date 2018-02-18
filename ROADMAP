@@ -2,7 +2,7 @@
 0.2     - parse and print weather data
 0.3.1   - add command line options parsing
 0.3.2   - add command line option for time selection
-0.4     - add long forecast mode
+0.4     - add "hour by hour" forecast mode
 0.5     - add command line option for data selection
 0.6     - implement simple file cache for weather data
 0.7     - add custom output formats for displaying forecast

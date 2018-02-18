@@ -2,6 +2,7 @@
 
 # CONFIGURATION VARIABLES 
 forecastURL='https://www.yr.no/place/Poland/Lublin/Biała_Podlaska/forecast.xml'
+forecast_long_URL='https://www.yr.no/place/Poland/Lublin/Biała_Podlaska/forecast_hour_by_hour.xml'
 needed_commands="xml"
 
 
@@ -22,10 +23,12 @@ check_for_needed_commands() {
 }
 
 usage() {
-    echo "Usage: $(basename "$0") [-h | --help] [-t <time> | --time <time>]"
+    echo "Usage: $(basename "$0") [-h | --help]"
+    echo "       $(basename "$0") [-t <time> | --time <time>] [-l | --long]"
     echo "Options:"
     echo "  -h, --help  print this message"
     echo "  -t, --time  print forecast for this time"
+    echo "  -l, --long  print forecast hour by hour"
 }
 
 fetch_forecast() {
@@ -73,7 +76,8 @@ get_sun() {
 get_forecast() {
     forecast_parse "$1"                                             \
         -m "//weatherdata/forecast/tabular/time"                    \
-        -o    "time:            " -v "@from" -o " - " -v "@to"      \
+        -o    "time:            " -v "@from"                        \
+        -o    " - "               -v "@to"                          \
         -n -o "forecast:        " -v "symbol/@name"                 \
         -n -o "temperature:     " -v "temperature/@value" -o "°C"   \
         -n -o "wind directions: " -v "windDirection/@name"          \
@@ -147,6 +151,10 @@ do
             usage            
             exit
             ;;
+        -l | --long)
+            __long=yes;
+            shift
+            ;;
         -t | --time)
             [[ $# < 2 ]] && { usage; exit 2; }
             if [[ $2 == now ]]; then 
@@ -165,7 +173,11 @@ done
 
 check_for_needed_commands || exit 1
 
-forecast=$(fetch_forecast  "$forecastURL")
+if [[ $__long ]]; then
+    forecast=$(fetch_forecast  "$forecast_long_URL")
+else
+    forecast=$(fetch_forecast  "$forecastURL")
+fi
 echo "$(get_location "$forecast")" ; echo
 echo "$(get_meta     "$forecast")" ; echo
 echo "$(get_sun      "$forecast")" ; echo
